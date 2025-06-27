@@ -31,6 +31,10 @@
 #    - Root credentials set to `minioadmin` / `minioadmin`.
 #    - Stores data in `minio_data` volume.
 #
+# 5. Python Script:
+#    - Script to download, read, and write binary data into Kafka Topic
+#
+#
 # Volumes:
 #   - postgres_data: persists PostgreSQL data
 #   - minio_data: persists MinIO object store
@@ -51,6 +55,7 @@ services:
       - "9092:9092"
       - "9093:9093"
     environment:
+      CLUSTER_ID: "N-1JTbT7TcmqFz1IlIUqyw"  # required for KRaft mode init
       KAFKA_NODE_ID: 1
       # Below is what roles this Kafka node will serve in KRaft mode. Defines the node's roles.
       # In KRaft mode, there is no Zookeeper.
@@ -78,15 +83,14 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_LOG_DIRS: /var/lib/kafka/data
-    command:
-      - bash
-      - -c
-      - |
-        if [ ! -f /var/lib/kafka/data/meta.properties ]; then
-          CLUSTER_ID=$(kafka-storage random-uuid)
-          kafka-storage format --cluster-id "$CLUSTER_ID" --config /etc/kafka/kafka.properties
-        fi
-        /etc/confluent/docker/run
+    entrypoint: >
+      bash -c "
+      if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+        echo '🌀 Initializing Kafka with KRaft cluster ID...'
+        kafka-storage format --cluster-id=$${CLUSTER_ID} --config /etc/kafka/kafka.properties
+      fi;
+      exec /etc/confluent/docker/run
+      "
     volumes:
       - kraft_data:/var/lib/kafka/data
 
@@ -120,6 +124,23 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data  # Persist uploaded objects
+
+  data-ingestion:
+    build: ./data-ingestion
+    depends_on:
+      - kafka
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    container_name: kafdrop
+    ports:
+      - "9002:9000"  # Expose web UI at localhost:9002
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+    depends_on:
+      - kafka
+
 
 volumes:
   postgres_data:
