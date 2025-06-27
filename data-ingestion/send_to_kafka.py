@@ -9,7 +9,7 @@ KAFKA_BROKER = 'localhost:9092'
 ARCHIVE_URL = "https://data.gharchive.org/2024-01-01-0.json.gz"
 
 # --- kafka setup ---
-producer = KafkaProducer(bootstrap_servers=KAFKA_BROKER)
+producer = KafkaProducer(bootstrap_servers=KAFKA_BROKER, value_serializer=lambda v: json.dumps(v).encode('utf-8'))
 
 # --- Download, decompress, read/send event to kafka topic
 print("Downloading archive...")
@@ -28,4 +28,4 @@ with gzip.GzipFile(fileobj=response.raw) as s:
             print("Error:", e)
 
 producer.flush()
-print("Done sending events to kafka topic.");
+print("Done sending events to kafka topic.")
