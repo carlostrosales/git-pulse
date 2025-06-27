@@ -29,6 +29,8 @@ def main():
                 event = json.loads(line.decode("utf-8"))
                 producer.send(KAFKA_TOPIC, event)
                 count += 1
+                if count % 1000 == 0:
+                    print(f"Sent {count} events.")
             except Exception as e:
                 print("Error:", e)
 
